@@ -6,10 +6,10 @@ import os
 df = pd.read_csv('archive/UrbanSound8K.csv')
 
 # air_conditioner sınıfına ait dosyaları filtrele
-air_conditioner_files = df[df['class'] == 'dog_bark']
+air_conditioner_files = df[df['class'] == 'gun_shot']
 
 # Hedef klasör
-target_dir = 'dataset/dog_bark'
+target_dir = 'dataset/gun_shot'
 os.makedirs(target_dir, exist_ok=True)
 
 # Dosyaları taşı
