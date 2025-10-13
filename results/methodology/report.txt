@@ -1,0 +1,21 @@
+# Üretilen Dosyalar
+- methodology/01_pipeline.png — Veri işleme hattı.
+- methodology/02_no_leakage.png — Sızıntı önleme şeması.
+- methodology/03_class_distribution.png — Sınıf dağılımı çubuk grafiği.
+- methodology/04_stft_windowing.png — Pencereleme açıklaması.
+- methodology/05_feature_grid.png — Öznitelik ızgarası (Mel/MFCC/Chroma/HP/Tempogram).
+- methodology/06_augmentation_effects.png — Augmentasyon etkileri minigrid.
+- methodology/07_snr_protocol.png — SNR karışım protokolü.
+- methodology/08_duration_hist.png — Kayıt süreleri histogramı.
+- methodology/09_tsne.png — t-SNE 2B gömme (n=3000).
+- methodology/08_hparams_table.md — Ön-işleme hiperparametre tablosu.
+- methodology/03_preprocessing.md — Makale metodoloji (model öncesi) metni.
+- methodology/captions.json — Türkçe şekil alt yazıları.
+
+# Varsayımlar
+- SNR karışımı beyaz gürültü ile simüle edildi (arka plan gürültüsü sağlanmadıysa).
+- t-SNE vektörü MFCC(20) ort/ss + Chroma(12) ort + spektral özetlerle kuruldu.
+- t-SNE perplexity veri boyutuna göre 30 seçildi.
+
+# Notlar
+- UMAP bulunamadı; sadece t-SNE üretildi. (pip install umap-learn ile ekleyebilirsin.)

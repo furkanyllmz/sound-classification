@@ -67,7 +67,6 @@ env/
 # Images
 *.jpg
 *.jpeg
-*.png
 *.gif
 *.bmp
 *.svg
@@ -92,3 +91,7 @@ env/
 # Other
 *.pem
 .localized
+
+*.npy
+
+train_mfcc_vgg16.py

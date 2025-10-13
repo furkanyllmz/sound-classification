@@ -7,7 +7,3 @@ seaborn
 pandas
 scipy
 
-# XAI (Explainable AI) kütüphaneleri
-opencv-python
-lime
-scikit-image
