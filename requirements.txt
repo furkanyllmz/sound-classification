@@ -6,4 +6,4 @@ matplotlib
 seaborn
 pandas
 scipy
-resampy
+

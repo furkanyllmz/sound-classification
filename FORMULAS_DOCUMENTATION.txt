@@ -1,0 +1,762 @@
+================================================================================
+          SOUND CLASSIFICATION PROJESİ
+          MATEMATİKSEL FORMÜLLER VE İŞLEMLER
+================================================================================
+
+Oluşturulma Tarihi: 13 Ekim 2025
+Proje: sound-classification
+Repository: furkanyllmz/sound-classification
+
+================================================================================
+
+
+1. SES İŞLEME VE ÖZELLİK ÇIKARIMI
+================================================================================
+
+1.1. MFCC (Mel-Frequency Cepstral Coefficients)
+--------------------------------------------------------------------------------
+Kod:
+    MFCC = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=40)
+
+Formüller:
+    • Mel Ölçeği Dönüşümü:
+      f_mel = 2595 × log₁₀(1 + f/700)
+      
+    • Discrete Cosine Transform (DCT) ile MFCC katsayıları hesaplanır
+    
+    • 40 adet MFCC katsayısı çıkarılıyor
+
+Açıklama:
+    MFCC, ses sinyallerinin frekans içeriğini insan işitme sistemine benzer
+    şekilde temsil eder. Mel ölçeği, insan kulağının frekans algısını
+    modelleyen logaritmik bir ölçektir.
+
+
+1.2. Mel-Spectrogram
+--------------------------------------------------------------------------------
+Kod:
+    mel_spec = librosa.feature.melspectrogram(y=audio, sr=sample_rate, n_mels=128)
+    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+
+Formüller:
+    • Güç Spektrumu:
+      S(f) = |FFT(x)|²
+      
+    • Mel Filtreleme: 
+      128 adet mel filtresi uygulanır
+      
+    • dB Dönüşümü:
+      S_dB = 10 × log₁₀(S / S_ref)
+      S_ref = max(S)
+
+Açıklama:
+    Mel-Spectrogram, sesin zaman-frekans temsilini mel ölçeğinde gösterir.
+    dB dönüşümü, dinamik aralığı daraltır ve görselleştirmeyi iyileştirir.
+
+
+================================================================================
+
+
+2. VERİ ÖN İŞLEME
+================================================================================
+
+2.1. Padding (Dolgu Ekleme)
+--------------------------------------------------------------------------------
+Kod:
+    pad_width = max_pad_len - mfccs.shape[1]
+    mfccs = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
+
+Formül:
+    x_padded[n] = { x[n]  if n < L
+                  { 0     if n ≥ L
+
+Açıklama:
+    Tüm ses örneklerini aynı uzunluğa getirmek için kısa örneklere 
+    sıfır eklenir.
+
+
+2.2. Truncation (Kırpma)
+--------------------------------------------------------------------------------
+Kod:
+    mfccs = mfccs[:, :max_pad_len]
+
+Açıklama:
+    Maksimum uzunluktan daha uzun örnekler kırpılır.
+
+
+2.3. RGB Dönüşümü (Transfer Learning için)
+--------------------------------------------------------------------------------
+Kod:
+    X_rgb = np.repeat(X[..., np.newaxis], 3, -1)
+
+Açıklama:
+    ImageNet ağırlıklı modeller RGB (3 kanal) girdi bekler. 
+    1 kanallı MFCC/Mel-Spectrogram verisini 3 kanala çoğaltırız.
+
+
+2.4. Label Encoding
+--------------------------------------------------------------------------------
+Kod:
+    le = LabelEncoder()
+    y_encoded = le.fit_transform(y)
+
+Açıklama:
+    Kategorik etiketleri (örn: "dog_bark", "siren") tamsayılara dönüştürür.
+    Örnek: ["dog_bark", "siren", "dog_bark"] → [0, 1, 0]
+
+
+2.5. One-Hot Encoding
+--------------------------------------------------------------------------------
+Kod:
+    y_categorical = to_categorical(y_encoded)
+
+Formül:
+    OneHot(k) = [0, 0, ..., 1, ..., 0]
+    (Sadece k'ıncı pozisyon 1, diğerleri 0)
+
+Örnek:
+    Sınıf 2 → [0, 0, 1, 0, 0, ...]
+
+Açıklama:
+    Çok sınıflı sınıflandırma için kategorik etiketleri binary vektörlere
+    dönüştürür.
+
+
+================================================================================
+
+
+3. SİNİR AĞI KATMANLARI VE AKTİVASYON FONKSİYONLARI
+================================================================================
+
+3.1. 2D Konvolüsyon (Conv2D)
+--------------------------------------------------------------------------------
+Kod:
+    Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=input_shape)
+
+Formül:
+    Y[i,j] = ∑_m ∑_n X[i+m, j+n] × W[m,n] + b
+
+Parametreler:
+    • 32: Filtre sayısı (çıkış kanalları)
+    • (3, 3): Kernel boyutu
+    • padding='same': Çıkış boyutu girişle aynı
+    • activation='relu': Aktivasyon fonksiyonu
+
+Açıklama:
+    Konvolüsyon işlemi, yerel desenleri tespit eder. Her filtre farklı
+    bir özelliği (kenar, doku, vs.) öğrenir.
+
+
+3.2. ReLU (Rectified Linear Unit)
+--------------------------------------------------------------------------------
+Kod:
+    activation='relu'
+
+Formül:
+    f(x) = max(0, x) = { x   if x > 0
+                       { 0   if x ≤ 0
+
+Türev:
+    f'(x) = { 1   if x > 0
+            { 0   if x ≤ 0
+
+Açıklama:
+    En yaygın aktivasyon fonksiyonu. Negatif değerleri sıfırlar,
+    pozitif değerleri olduğu gibi bırakır. Gradient vanishing problemini
+    azaltır.
+
+
+3.3. Softmax (Çıkış Katmanı)
+--------------------------------------------------------------------------------
+Kod:
+    Dense(num_classes, activation='softmax')
+
+Formül:
+    softmax(x_i) = exp(x_i) / ∑_j exp(x_j)
+
+Özellikler:
+    • Çıktılar [0, 1] aralığında
+    • Tüm çıktıların toplamı = 1
+    • Olasılık dağılımı olarak yorumlanabilir
+
+Örnek:
+    x = [2.0, 1.0, 0.1]
+    softmax(x) ≈ [0.659, 0.242, 0.099]
+
+
+3.4. Batch Normalization
+--------------------------------------------------------------------------------
+Kod:
+    BatchNormalization()
+
+Formüller:
+    1. Normalize:
+       x̂ = (x - μ_B) / √(σ²_B + ε)
+       
+    2. Scale ve Shift:
+       y = γ × x̂ + β
+
+Parametreler:
+    • μ_B: Batch ortalaması
+    • σ²_B: Batch varyansı
+    • ε: Sayısal stabilite için küçük sabit (10⁻⁵)
+    • γ, β: Öğrenilebilir parametreler
+
+Açıklama:
+    Her batch'in ortalamasını 0, standart sapmasını 1 yapar.
+    Eğitimi hızlandırır ve stabilize eder.
+
+
+3.5. Max Pooling
+--------------------------------------------------------------------------------
+Kod:
+    MaxPooling2D((2, 2))
+
+Formül:
+    Y[i,j] = max_{(m,n) ∈ R} X[i×s+m, j×s+n]
+
+Açıklama:
+    2×2 pencere içindeki maksimum değeri alır.
+    Boyutu yarıya indirir, hesaplama maliyetini azaltır.
+    Translasyon invaryansı sağlar.
+
+
+3.6. Dropout
+--------------------------------------------------------------------------------
+Kod:
+    Dropout(0.25)  # veya 0.5
+
+Formül:
+    Eğitim: y = { x/(1-p)  with probability (1-p)
+                { 0        with probability p
+    
+    Test: y = x
+
+Açıklama:
+    Eğitim sırasında rastgele nöronları kapatır (p olasılıkla).
+    Overfitting'i önler, model genelleştirmesini iyileştirir.
+    Test sırasında tüm nöronlar aktiftir.
+
+
+3.7. Global Average Pooling
+--------------------------------------------------------------------------------
+Kod:
+    GlobalAveragePooling2D()
+
+Formül:
+    y_k = (1 / (H × W)) × ∑_{i=1}^H ∑_{j=1}^W x_{k,i,j}
+
+Açıklama:
+    Her feature map'in tüm değerlerinin ortalamasını alır.
+    H×W×C boyutlu tensörü C boyutlu vektöre indirir.
+    Flatten + Dense'e göre daha az parametre gerektirir.
+
+
+3.8. Dense (Fully Connected) Katman
+--------------------------------------------------------------------------------
+Kod:
+    Dense(256, activation='relu')
+
+Formül:
+    y = W × x + b
+
+Boyutlar:
+    • x: (batch_size, input_dim)
+    • W: (input_dim, output_dim)
+    • b: (output_dim,)
+    • y: (batch_size, output_dim)
+
+
+3.9. Flatten
+--------------------------------------------------------------------------------
+Kod:
+    Flatten()
+
+Açıklama:
+    Çok boyutlu tensörü 1D vektöre dönüştürür.
+    (batch, height, width, channels) → (batch, height×width×channels)
+
+
+================================================================================
+
+
+4. KAYIP FONKSİYONU VE OPTİMİZASYON
+================================================================================
+
+4.1. Categorical Cross-Entropy Loss
+--------------------------------------------------------------------------------
+Kod:
+    loss='categorical_crossentropy'
+
+Formül:
+    L = -∑_{i=1}^C y_i × log(ŷ_i)
+
+Parametreler:
+    • C: Sınıf sayısı
+    • y_i: Gerçek etiket (one-hot encoded)
+    • ŷ_i: Tahmin edilen olasılık (softmax çıktısı)
+
+Örnek:
+    Gerçek: [0, 1, 0]  (sınıf 1)
+    Tahmin: [0.1, 0.7, 0.2]
+    Loss = -(0×log(0.1) + 1×log(0.7) + 0×log(0.2)) = -log(0.7) ≈ 0.357
+
+Açıklama:
+    Tahmin ile gerçek etiket arasındaki farkı ölçer.
+    Doğru sınıfa yüksek olasılık verildiğinde loss azalır.
+
+
+4.2. Adam Optimizer
+--------------------------------------------------------------------------------
+Kod:
+    optimizer='adam'
+    optimizer=Adam(learning_rate=1e-4)
+
+Formüller:
+    1. Momentum tahmini:
+       m_t = β₁ × m_{t-1} + (1 - β₁) × g_t
+       
+    2. Varyans tahmini:
+       v_t = β₂ × v_{t-1} + (1 - β₂) × g_t²
+       
+    3. Bias düzeltmesi:
+       m̂_t = m_t / (1 - β₁^t)
+       v̂_t = v_t / (1 - β₂^t)
+       
+    4. Parametre güncelleme:
+       θ_t = θ_{t-1} - α × m̂_t / (√v̂_t + ε)
+
+Hiperparametreler:
+    • α: Learning rate (varsayılan: 0.001)
+    • β₁: Momentum için decay rate (varsayılan: 0.9)
+    • β₂: Varyans için decay rate (varsayılan: 0.999)
+    • ε: Sayısal stabilite (varsayılan: 10⁻⁸)
+
+Açıklama:
+    Adam = Adaptive Moment Estimation
+    Her parametre için adaptif learning rate kullanır.
+    Momentum ve RMSprop'un avantajlarını birleştirir.
+
+
+================================================================================
+
+
+5. METRİKLER VE DEĞERLENDİRME
+================================================================================
+
+5.1. Accuracy (Doğruluk)
+--------------------------------------------------------------------------------
+Kod:
+    metrics=['accuracy']
+
+Formül:
+    Accuracy = (Doğru Tahminler) / (Toplam Tahminler)
+    Accuracy = (TP + TN) / (TP + TN + FP + FN)
+
+Açıklama:
+    En basit sınıflandırma metriği. Dengeli dataset'lerde etkilidir.
+
+
+5.2. Confusion Matrix
+--------------------------------------------------------------------------------
+Kod:
+    cm = confusion_matrix(y_true_classes, y_pred_classes)
+
+Yapı:
+                  Tahmin Edilen
+                  C1    C2    C3
+    Gerçek  C1  [ n11   n12   n13 ]
+            C2  [ n21   n22   n23 ]
+            C3  [ n31   n32   n33 ]
+
+Açıklama:
+    Satır: Gerçek sınıf
+    Sütun: Tahmin edilen sınıf
+    Köşegen elemanlar: Doğru sınıflandırmalar
+
+
+5.3. Confusion Matrix Normalizasyonu
+--------------------------------------------------------------------------------
+Kod:
+    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+
+Formül:
+    CM_norm[i,j] = CM[i,j] / ∑_k CM[i,k]
+
+Açıklama:
+    Her satırı kendi toplamına böler.
+    Değerler [0, 1] aralığına normalize edilir.
+    Sınıf dengesizliği olduğunda karşılaştırmayı kolaylaştırır.
+
+
+5.4. Class-wise Accuracy (Sınıf Bazlı Doğruluk)
+--------------------------------------------------------------------------------
+Kod:
+    class_accuracy = cm.diagonal() / cm.sum(axis=1)
+
+Formül:
+    Accuracy_i = CM[i,i] / ∑_j CM[i,j]
+
+Açıklama:
+    Her sınıf için ayrı accuracy hesaplar.
+    Hangi sınıfların iyi/kötü tahmin edildiğini gösterir.
+
+
+5.5. Classification Report Metrikleri
+--------------------------------------------------------------------------------
+
+Precision (Kesinlik):
+    Precision = TP / (TP + FP)
+    "Pozitif tahminlerden kaçı gerçekten pozitif?"
+
+Recall (Duyarlılık):
+    Recall = TP / (TP + FN)
+    "Gerçek pozitiflerin kaçı yakalandı?"
+
+F1-Score:
+    F1 = 2 × (Precision × Recall) / (Precision + Recall)
+    Precision ve Recall'un harmonik ortalaması
+
+Support:
+    Her sınıftaki örnek sayısı
+
+
+================================================================================
+
+
+6. CALLBACK FONKSİYONLARI
+================================================================================
+
+6.1. EarlyStopping
+--------------------------------------------------------------------------------
+Kod:
+    EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+
+Parametreler:
+    • monitor: İzlenecek metrik (val_loss, val_accuracy, vs.)
+    • patience: Kaç epoch iyileşme olmazsa durdurulsun
+    • restore_best_weights: En iyi ağırlıkları geri yükle
+
+Açıklama:
+    Validation loss belirli epoch boyunca iyileşmezse eğitimi durdurur.
+    Overfitting'i önler, eğitim süresini kısaltır.
+
+
+6.2. ReduceLROnPlateau
+--------------------------------------------------------------------------------
+Kod:
+    ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-7)
+
+Formül:
+    lr_new = lr_old × factor
+
+Parametreler:
+    • monitor: İzlenecek metrik
+    • factor: Learning rate çarpanı (0.5 = yarıya indir)
+    • patience: Kaç epoch iyileşme olmazsa lr azaltılsın
+    • min_lr: Minimum learning rate
+
+Açıklama:
+    Eğitim platoya ulaştığında learning rate'i azaltır.
+    Daha ince ayar yapmayı sağlar.
+
+
+================================================================================
+
+
+7. VERİ BÖLME STRATEJİSİ
+================================================================================
+
+7.1. Stratified Train-Test Split
+--------------------------------------------------------------------------------
+Kod:
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y_categorical, test_size=0.2, random_state=42, stratify=y_categorical
+    )
+
+Bölünme Oranları:
+    • Test Set: %20
+    • Train Set: %80
+      └─ Validation Set: %20 (train'in %20'si)
+      └─ Final Train Set: %80 (train'in %80'i)
+
+Final Dağılım:
+    • Train: %64 (0.8 × 0.8 = 0.64)
+    • Validation: %16 (0.8 × 0.2 = 0.16)
+    • Test: %20
+
+Stratified Split:
+    Her sınıfın oranı tüm setlerde korunur.
+    Örnek: Sınıf A %30 ise, train/val/test'te de yaklaşık %30 olur.
+
+
+================================================================================
+
+
+8. TEMEL MATEMATİKSEL OPERASYONLAR ÖZETİ
+================================================================================
+
+┌─────────────────────┬──────────────────────┬────────────────────────────┐
+│ Kategori            │ Formül/İşlem         │ Kullanım Alanı             │
+├─────────────────────┼──────────────────────┼────────────────────────────┤
+│ Fourier Dönüşümü    │ FFT                  │ Mel-Spectrogram            │
+│ Logaritma           │ log₁₀, ln            │ Mel scale, dB dönüşümü     │
+│ Üstel Fonksiyon     │ eˣ                   │ Softmax aktivasyonu        │
+│ Maksimum            │ max(x)               │ ReLU, Max Pooling          │
+│ Ortalama            │ μ = (1/n)∑xᵢ         │ Batch Norm, GAP            │
+│ Varyans             │ σ²=(1/n)∑(xᵢ-μ)²     │ Batch Normalization        │
+│ Standart Sapma      │ σ = √σ²              │ Normalizasyon              │
+│ Konvolüsyon         │ x * w                │ CNN katmanları             │
+│ Matris Çarpımı      │ XW + b               │ Dense katmanlar            │
+│ Normalize           │ (x-μ)/σ              │ Batch Normalization        │
+│ Element-wise Çarpım │ x ⊙ y                │ Dropout, Gates             │
+│ Toplama             │ ∑                    │ Tüm hesaplamalar           │
+└─────────────────────┴──────────────────────┴────────────────────────────┘
+
+
+================================================================================
+
+
+9. KULLANILAN DERİN ÖĞRENME MODELLERİ
+================================================================================
+
+9.1. Custom CNN (MFCC Tabanlı)
+--------------------------------------------------------------------------------
+Mimari:
+    Input (40, 174, 1)
+    ↓
+    Conv2D(32, 3×3) → BN → Conv2D(32, 3×3) → BN → MaxPool(2×2) → Dropout(0.25)
+    ↓
+    Conv2D(64, 3×3) → BN → Conv2D(64, 3×3) → BN → MaxPool(2×2) → Dropout(0.25)
+    ↓
+    Conv2D(128, 3×3) → BN → Conv2D(128, 3×3) → BN → MaxPool(2×2) → Dropout(0.25)
+    ↓
+    Flatten
+    ↓
+    Dense(256) → BN → Dropout(0.5)
+    ↓
+    Dense(128) → BN → Dropout(0.5)
+    ↓
+    Dense(num_classes, softmax)
+
+Parametreler:
+    • Input: 40 MFCC katsayısı × 174 time frame
+    • Filtre sayıları: 32 → 64 → 128
+    • Dropout oranları: 0.25 (conv), 0.5 (dense)
+
+
+9.2. Custom CNN (Mel-Spectrogram Tabanlı)
+--------------------------------------------------------------------------------
+Mimari:
+    Input (128, 174, 1)
+    ↓
+    4× Konvolüsyon Bloğu (32 → 64 → 128 → 256)
+    ↓
+    Flatten
+    ↓
+    Dense(512) → BN → Dropout(0.5)
+    ↓
+    Dense(256) → BN → Dropout(0.5)
+    ↓
+    Dense(num_classes, softmax)
+
+Fark:
+    • Daha yüksek input resolution (128 vs 40)
+    • Ekstra konvolüsyon bloğu (256 filtre)
+    • Daha büyük dense katmanlar (512, 256)
+
+
+9.3. Transfer Learning Models
+--------------------------------------------------------------------------------
+Kullanılabilir Modeller:
+    • VGG: VGG16, VGG19
+    • ResNet: ResNet50, ResNet101, ResNet152
+    • Inception: InceptionV3, InceptionResNetV2
+    • MobileNet: MobileNet, MobileNetV2
+    • DenseNet: DenseNet121, DenseNet169, DenseNet201
+    • EfficientNet: EfficientNetB0, B1, B2, B3
+    • Xception
+
+Mimari:
+    Input (40, 174, 3)  [RGB dönüşümü yapılmış MFCC]
+    ↓
+    Pre-trained Base Model (ImageNet weights)
+    ↓
+    GlobalAveragePooling2D
+    ↓
+    Dense(512) → BN → Dropout(0.5)
+    ↓
+    Dense(256) → BN → Dropout(0.5)
+    ↓
+    Dense(num_classes, softmax)
+
+Fine-tuning Stratejisi:
+    • İlk katmanlar: Dondurulmuş (trainable=False)
+    • Son katmanlar: Eğitilebilir (trainable_layers=4)
+    • Learning rate: Düşük (1e-4)
+
+
+================================================================================
+
+
+10. EĞİTİM HİPERPARAMETRELERİ
+================================================================================
+
+Model Hiperparametreleri:
+    • Epochs: 20-50
+    • Batch Size: 16-32
+    • Learning Rate: 1e-4 (transfer learning), adam default (custom CNN)
+    • Optimizer: Adam
+
+Regularizasyon:
+    • Dropout: 0.25 (conv), 0.5 (dense)
+    • Batch Normalization: Her katmandan sonra
+    • Early Stopping: patience=15-20
+
+Data Augmentation (Kullanılmamış, potansiyel):
+    • Time stretching
+    • Pitch shifting
+    • Adding noise
+    • Time shifting
+
+
+================================================================================
+
+
+11. DOSYA VE KOD YAPISI
+================================================================================
+
+Proje Dosyaları:
+    • train_mfcc_cnn.py           → Custom CNN (MFCC)
+    • train_melspectrogram_cnn.py → Custom CNN (Mel-Spectrogram)
+    • train_mfcc_vgg16.py         → Transfer Learning (tüm modeller)
+    • visualize_audio_features.py → MFCC/Mel-Spec görselleştirme
+    • create_mfcc_sample_predictions.py → Örnek tahminler
+
+Sonuç Klasörleri:
+    • results/mfcc/
+    • results/melspectrogram/
+    • results/mfcc_vgg16/ (veya diğer model isimleri)
+    • results/feature_visualizations/
+
+
+================================================================================
+
+
+12. KAYDEDILEN GÖRSELLER VE METRIKLER
+================================================================================
+
+Her model için:
+    ✓ training_history.png        → Accuracy ve Loss grafikleri
+    ✓ confusion_matrix.png         → Confusion matrix
+    ✓ confusion_matrix_normalized.png → Normalize confusion matrix
+    ✓ class_accuracy.png           → Sınıf bazlı accuracy bar chart
+    ✓ learning_rate.png            → Learning rate schedule
+    ✓ sample_predictions.png       → Örnek tahminler
+    ✓ results.json                 → Test sonuçları (JSON)
+    ✓ model.h5                     → Eğitilmiş model
+
+
+================================================================================
+
+
+13. ÖNEMLİ NOTLAR
+================================================================================
+
+1. Ses Dosyası Özellikleri:
+   • Format: WAV
+   • Duration: 4 saniye (sabit)
+   • Sample Rate: Librosa default (22050 Hz)
+   • Mono kanal
+
+2. Veri Hazırlama:
+   • Max padding: 174 frame
+   • MFCC: n_mfcc=40
+   • Mel-Spectrogram: n_mels=128
+
+3. Model Seçimi:
+   • MFCC: Daha kompakt, daha hızlı
+   • Mel-Spectrogram: Daha detaylı, daha yavaş
+   • Transfer Learning: En iyi accuracy, en yavaş
+
+4. Performans İyileştirme:
+   • Batch size artırma (GPU varsa)
+   • Data augmentation ekleme
+   • Ensemble modeller
+   • Fine-tuning daha fazla katman
+
+
+================================================================================
+
+
+14. MATEMATIKSEL NOTASYON REHBERİ
+================================================================================
+
+Semboller:
+    ∑     : Toplama
+    ∏     : Çarpma
+    ×     : Çarpma (skaler)
+    ⊙     : Element-wise çarpma
+    *     : Konvolüsyon
+    √     : Karekök
+    ²     : Kare
+    ≈     : Yaklaşık eşit
+    ≤     : Küçük eşit
+    ≥     : Büyük eşit
+    ∈     : Elemanı
+    μ     : Ortalama (mu)
+    σ     : Standart sapma (sigma)
+    σ²    : Varyans
+    θ     : Model parametreleri (theta)
+    α     : Learning rate (alpha)
+    β     : Beta parametreleri
+    γ     : Gamma parametreleri
+    ε     : Epsilon (küçük sabit)
+    ∇     : Gradient (nabla)
+    ŷ     : Tahmin değeri (y-hat)
+    x̂     : Normalize değer (x-hat)
+
+Indeksler:
+    i, j, k : Döngü değişkenleri
+    t       : Zaman adımı
+    B       : Batch
+    C       : Sınıf sayısı
+    H       : Yükseklik (Height)
+    W       : Genişlik (Width)
+
+
+================================================================================
+
+
+15. REFERANSLAR VE KAYNAKLAR
+================================================================================
+
+Kütüphaneler:
+    • Librosa: Ses işleme ve özellik çıkarımı
+    • TensorFlow/Keras: Derin öğrenme framework
+    • NumPy: Numerik hesaplamalar
+    • Scikit-learn: Machine learning utilities
+    • Matplotlib/Seaborn: Görselleştirme
+
+Papers & Concepts:
+    • MFCC: Davis & Mermelstein (1980)
+    • Adam Optimizer: Kingma & Ba (2014)
+    • Batch Normalization: Ioffe & Szegedy (2015)
+    • VGG: Simonyan & Zisserman (2014)
+    • ResNet: He et al. (2015)
+    • Inception: Szegedy et al. (2015)
+    • MobileNet: Howard et al. (2017)
+    • EfficientNet: Tan & Le (2019)
+
+
+================================================================================
+                              DÖKÜMAN SONU
+================================================================================
+
+Bu dokümantasyon, sound-classification projesinde kullanılan tüm
+matematiksel formülleri, deep learning kavramlarını ve implementasyon
+detaylarını içermektedir.
+
+Güncellenme: 13 Ekim 2025
+Version: 1.0
+================================================================================
